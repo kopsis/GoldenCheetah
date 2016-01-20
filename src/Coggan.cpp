@@ -20,6 +20,7 @@
 #include "RideMetric.h"
 #include "RideItem.h"
 #include "Zones.h"
+#include "HrZones.h"
 #include "Settings.h"
 #include "Athlete.h"
 #include "Specification.h"
@@ -230,22 +231,51 @@ class TSS : public RideMetric {
         RideMetric *rif = deps.value("coggan_if");
         assert(rif);
         double normWork = np->value(true) * np->count();
-        double rawTSS = normWork * rif->value(true);
+	if (normWork > 0.0) {
+            double rawTSS = normWork * rif->value(true);
 
-        int ftp = item->getText("FTP","0").toInt();
+            int ftp = item->getText("FTP","0").toInt();
 
-        bool useCPForFTP = (appsettings->cvalue(item->context->athlete->cyclist, item->context->athlete->zones(item->isRun)->useCPforFTPSetting(), 0).toInt() == 0);
+            bool useCPForFTP = (appsettings->cvalue(item->context->athlete->cyclist, item->context->athlete->zones(item->isRun)->useCPforFTPSetting(), 0).toInt() == 0);
 
-        if (useCPForFTP) {
-            int cp = item->getText("CP","0").toInt();
-            if (cp == 0)
-                cp = item->context->athlete->zones(item->isRun)->getCP(item->zoneRange);
+            if (useCPForFTP) {
+                int cp = item->getText("CP","0").toInt();
+                if (cp == 0)
+                    cp = item->context->athlete->zones(item->isRun)->getCP(item->zoneRange);
 
-            ftp = cp;
-        }
+                ftp = cp;
+            }
 
-        double workInAnHourAtCP = (ftp ? ftp : item->context->athlete->zones(item->isRun)->getFTP(item->zoneRange)) * 3600;
-        score = rawTSS / workInAnHourAtCP * 100.0;
+            double workInAnHourAtCP = (ftp ? ftp : item->context->athlete->zones(item->isRun)->getFTP(item->zoneRange)) * 3600;
+            score = rawTSS / workInAnHourAtCP * 100.0;
+	}
+	else {
+            // No power data, so compute TSS based on average HR and time.
+            // The formula is based on a curve fit of the table in:
+            // http://home.trainingpeaks.com/blog/article/estimating-training-stress-score-tss
+            // plotted against the HR zone percentages in:
+            // http://www.trainingbible.com/joesblog/2009/11/quick-guide-to-setting-zones.html
+            // Resulting formula is:
+            //   lt_pct = avg_HR/LT_HR
+	    //   TSS/hour = 18.78*exp(0.3705*lt_pct) + 0.341*exp(5.292*lt_pct)
+	    if (!item->context->athlete->hrZones() || item->hrZoneRange < 0)
+		return;
+	    assert(deps.contains("time_riding"));
+	    assert(deps.contains("workout_time"));
+	    assert(deps.contains("average_hr"));
+	    const RideMetric *timeRidingMetric = deps.value("time_riding");
+	    const RideMetric *averageHrMetric = deps.value("average_hr");
+	    const RideMetric *durationMetric = deps.value("workout_time");
+	    assert(timeRidingMetric);
+	    assert(durationMetric);
+	    assert(averageHrMetric);
+	    double secs = timeRidingMetric->value(true) ? 
+		timeRidingMetric->value(true) : durationMetric->value(true);
+	    double hr = averageHrMetric->value(true);
+	    double ltHr = (double)(item->context->athlete->hrZones()->getLT(item->hrZoneRange));
+	    double TSSPerHr = 18.78*exp(0.3705*(hr/ltHr)) + 0.341*exp(5.292*(hr/ltHr));
+	    score = TSSPerHr * (secs/3600);
+	}
 
         setValue(score);
     }
