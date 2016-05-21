@@ -79,7 +79,7 @@ lessThan(QT_MAJOR_VERSION, 5) {
 ###=======================================================================
 ### Directory Structure - Split into subdirs to be more manageable
 ###=======================================================================
-INCLUDEPATH += ./ANT ./Train ./FileIO ./Cloud ./Charts ./Metrics ./Gui ./Core
+INCLUDEPATH += ./ANT ./Train ./FileIO ./Cloud ./Charts ./Metrics ./Gui ./Core ./R
 
 
 ###=======================================================================
@@ -209,7 +209,6 @@ TSQM.commands = $$QMAKE_LRELEASE ${QMAKE_FILE_IN} -qm $$TS_DIR/${QMAKE_FILE_BASE
 TSQM.CONFIG = no_link target_predeps
 QMAKE_EXTRA_COMPILERS += TSQM
 
-
 ###==========
 ### RESOURCES
 ###==========
@@ -233,40 +232,29 @@ RESOURCES = $${PWD}/Resources/application.qrc $${PWD}/Resources/RideWindow.qrc
 
 contains(DEFINES, "GC_WANT_R") {
 
-    # not platform dependant at this point, but have
-    # only just started developing on Linux
+    # Only supports Linux and OSX until RInside and Rcpp support MSVC
+    # This is not likely to be very soon, they are heavily dependant on GCC
     # see: http://dirk.eddelbuettel.com/blog/2011/03/25/#rinside_and_qt
+    isEmpty(R_HOME){ R_HOME = $$system(R RHOME) }
 
-    R_HOME =                $$system(R RHOME)
+    ## include headers and libraries for R
+    win32  { QMAKE_CXXFLAGS += -I$$R_HOME/include
+             DEFINES += Win32 }
+    else   { QMAKE_CXXFLAGS += $$system($$R_HOME/bin/R CMD config --cppflags) }
 
-    ## include headers and libraries for R 
-    RCPPFLAGS =             $$system($$R_HOME/bin/R CMD config --cppflags)
-    RLDFLAGS =              $$system($$R_HOME/bin/R CMD config --ldflags)
-    RBLAS =                 $$system($$R_HOME/bin/R CMD config BLAS_LIBS)
-    RLAPACK =               $$system($$R_HOME/bin/R CMD config LAPACK_LIBS)
+    ## R has lots of compatibility headers for S and legacy R code we don't want
+    DEFINES += STRICT_R_HEADERS
 
-    ## if you need to set an rpath to R itself, also uncomment
-    #RRPATH =               -Wl,-rpath,$$R_HOME/lib
+    ## R integration
+    HEADERS += R/REmbed.h R/RTool.h R/RGraphicsDevice.h R/RSyntax.h R/RLibrary.h
+    SOURCES += R/REmbed.cpp R/RTool.cpp R/RGraphicsDevice.cpp R/RSyntax.cpp R/RLibrary.cpp
 
-    ## include headers and libraries for Rcpp interface classes
-    RCPPINCL =              $$system($$R_HOME/bin/Rscript -e \'Rcpp:::CxxFlags\(\)\')
-    RCPPLIBS =              $$system($$R_HOME/bin/Rscript -e \'Rcpp:::LdFlags\(\)\')
+    ## R based charts
+    HEADERS += Charts/RChart.h Charts/RCanvas.h
+    SOURCES += Charts/RChart.cpp Charts/RCanvas.cpp
 
-    ## for some reason when building with Qt we get this each time
-    ## so we turn unused parameter warnings off
-    RCPPWARNING =           -Wno-unused-parameter 
-    ## include headers and libraries for RInside embedding classes
-    RINSIDEINCL =           $$system($$R_HOME/bin/Rscript -e \'RInside:::CxxFlags\(\)\')
-    RINSIDELIBS =           $$system($$R_HOME/bin/Rscript -e \'RInside:::LdFlags\(\)\')
-
-    ## compiler etc settings used in default make rules
-    QMAKE_CXXFLAGS +=       $$RCPPWARNING $$RCPPFLAGS $$RCPPINCL $$RINSIDEINCL
-    LIBS +=         		$$RLDFLAGS $$RBLAS $$RLAPACK $$RCPPLIBS $$RINSIDELIBS
-
-    ## Chart, Tool (R api), Grahics (R device bridge to QWidget)
-    HEADERS += Charts/RChart.h Charts/RTool.h Charts/RGraphicsDevice.h
-    SOURCES += Charts/RChart.cpp Charts/RTool.cpp Charts/RGraphicsDevice.cpp
-
+    ## For hardware accelerated scene rendering
+    QT += opengl
 }
 
 ###====================
@@ -593,6 +581,13 @@ greaterThan(QT_MAJOR_VERSION, 4) {
     HEADERS += Train/MonarkController.h Train/MonarkConnection.h
     SOURCES += Train/Kettler.cpp Train/KettlerController.cpp Train/KettlerConnection.cpp
     HEADERS += Train/Kettler.h Train/KettlerController.h Train/KettlerConnection.h
+
+    # bluetooth in QT5.5 or higher(5.4 was only a tech preview)
+    greaterThan(QT_MINOR_VERSION, 4) {
+        QT += bluetooth
+        HEADERS += Train/BT40Controller.h Train/BT40Device.h
+        SOURCES += Train/BT40Controller.cpp Train/BT40Device.cpp
+    }
 }
 
 
@@ -729,7 +724,7 @@ SOURCES += Core/Athlete.cpp Core/Context.cpp Core/DataFilter.cpp Core/FreeSearch
 SOURCES += FileIO/AthleteBackup.cpp FileIO/Bin2RideFile.cpp FileIO/BinRideFile.cpp FileIO/CommPort.cpp \
            FileIO/Computrainer3dpFile.cpp FileIO/CsvRideFile.cpp FileIO/DataProcessor.cpp FileIO/Device.cpp \
            FileIO/FitlogParser.cpp FileIO/FitlogRideFile.cpp FileIO/FitRideFile.cpp FileIO/FixDeriveDistance.cpp FileIO/FixDerivePower.cpp \
-           FileIO/FixDeriveTorque.cpp FileIO/FixElevation.cpp FileIO/FixFreewheeling.cpp FileIO/FixGaps.cpp FileIO/FixGPS.cpp \
+           FileIO/FixDeriveTorque.cpp FileIO/FixElevation.cpp FileIO/FixFreewheeling.cpp FileIO/FixGaps.cpp FileIO/FixGPS.cpp FileIO/FixRunningPower.cpp \
            FileIO/FixHRSpikes.cpp FileIO/FixMoxy.cpp FileIO/FixPower.cpp FileIO/FixSmO2.cpp FileIO/FixSpeed.cpp FileIO/FixSpikes.cpp \
            FileIO/FixTorque.cpp FileIO/GcRideFile.cpp FileIO/GpxParser.cpp FileIO/GpxRideFile.cpp FileIO/JouleDevice.cpp FileIO/LapsEditor.cpp \
            FileIO/MacroDevice.cpp FileIO/ManualRideFile.cpp FileIO/MoxyDevice.cpp \

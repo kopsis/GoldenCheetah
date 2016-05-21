@@ -63,7 +63,7 @@ GeneralPage::GeneralPage(Context *context) : context(context)
     //
     // Language Selection
     //
-    langLabel = new QLabel(tr("Language:"));
+    langLabel = new QLabel(tr("Language"));
     langCombo = new QComboBox();
     langCombo->addItem(tr("English"));
     langCombo->addItem(tr("French"));
@@ -122,7 +122,7 @@ GeneralPage::GeneralPage(Context *context) : context(context)
 
     // by default, set the threshold to 25 seconds
     if (garminHWMark.isNull() || garminHWMark.toInt() == 0) garminHWMark.setValue(25);
-    QLabel *garminHWLabel = new QLabel(tr("Smart Recording Threshold (secs):"));
+    QLabel *garminHWLabel = new QLabel(tr("Smart Recording Threshold (secs)"));
     garminHWMarkedit = new QLineEdit(garminHWMark.toString(),this);
     garminHWMarkedit->setInputMask("009");
 
@@ -135,7 +135,7 @@ GeneralPage::GeneralPage(Context *context) : context(context)
     if (elevationHysteresis.isNull() || elevationHysteresis.toFloat() == 0.0)
        elevationHysteresis.setValue(3.0);  // default is 1 meter
 
-    QLabel *hystlabel = new QLabel(tr("Elevation hysteresis (meters):"));
+    QLabel *hystlabel = new QLabel(tr("Elevation hysteresis (meters)"));
     hystedit = new QLineEdit(elevationHysteresis.toString(),this);
     hystedit->setInputMask("9.00");
 
@@ -144,7 +144,7 @@ GeneralPage::GeneralPage(Context *context) : context(context)
 
 
     // wbal formula preference
-    QLabel *wbalFormLabel = new QLabel(tr("W' bal formula:"));
+    QLabel *wbalFormLabel = new QLabel(tr("W' bal formula"));
     wbalForm = new QComboBox(this);
     wbalForm->addItem(tr("Differential"));
     wbalForm->addItem(tr("Integral"));
@@ -171,12 +171,19 @@ GeneralPage::GeneralPage(Context *context) : context(context)
     startHttp->setChecked(appsettings->value(NULL, GC_START_HTTP, true).toBool());
     configLayout->addWidget(startHttp, 7,1, Qt::AlignLeft);
 #endif
+#ifdef GC_WANT_R
+    embedR = new QCheckBox(tr("Enable R"), this);
+    embedR->setChecked(appsettings->value(NULL, GC_EMBED_R, true).toBool());
+    configLayout->addWidget(embedR, 7+offset,1, Qt::AlignLeft);
+    offset += 1;
+    connect(embedR, SIGNAL(stateChanged(int)), this, SLOT(embedRchanged(int)));
+#endif
 
     //
     // Athlete directory (home of athletes)
     //
     QVariant athleteDir = appsettings->value(this, GC_HOMEDIR);
-    athleteLabel = new QLabel(tr("Athlete Library:"));
+    athleteLabel = new QLabel(tr("Athlete Library"));
     athleteDirectory = new QLineEdit;
     athleteDirectory->setText(athleteDir.toString() == "0" ? "" : athleteDir.toString());
     athleteWAS = athleteDirectory->text(); // remember what we started with ...
@@ -195,7 +202,7 @@ GeneralPage::GeneralPage(Context *context) : context(context)
     QVariant workoutDir = appsettings->value(this, GC_WORKOUTDIR, "");
     // fix old bug..
     if (workoutDir == "0") workoutDir = "";
-    workoutLabel = new QLabel(tr("Workout and VideoSync Library:"));
+    workoutLabel = new QLabel(tr("Workout and VideoSync Library"));
     workoutDirectory = new QLineEdit;
     workoutDirectory->setText(workoutDir.toString());
     workoutBrowseButton = new QPushButton(tr("Browse"));
@@ -206,6 +213,28 @@ GeneralPage::GeneralPage(Context *context) : context(context)
     configLayout->addWidget(workoutBrowseButton, 8 + offset,2);
 
     connect(workoutBrowseButton, SIGNAL(clicked()), this, SLOT(browseWorkoutDir()));
+    offset++;
+
+#ifdef GC_WANT_R
+    //
+    // R Home directory
+    //
+    QVariant rDir = appsettings->value(this, GC_R_HOME, "");
+    // fix old bug..
+    if (rDir == "0") rDir = "";
+    rLabel = new QLabel(tr("R Installation Directory"));
+    rDirectory = new QLineEdit;
+    rDirectory->setText(rDir.toString());
+    rBrowseButton = new QPushButton(tr("Browse"));
+    rBrowseButton->setFixedWidth(120);
+
+    configLayout->addWidget(rLabel, 8 + offset,0, Qt::AlignRight);
+    configLayout->addWidget(rDirectory, 8 + offset,1);
+    configLayout->addWidget(rBrowseButton, 8 + offset,2);
+    offset++;
+
+    connect(rBrowseButton, SIGNAL(clicked()), this, SLOT(browseRDir()));
+#endif
 
     // save away initial values
     b4.unit = unitCombo->currentIndex();
@@ -217,6 +246,15 @@ GeneralPage::GeneralPage(Context *context) : context(context)
 #endif
 }
 
+#ifdef GC_WANT_R
+void
+GeneralPage::embedRchanged(int state)
+{
+    rBrowseButton->setVisible(state);
+    rDirectory->setVisible(state);
+    rLabel->setVisible(state);
+}
+#endif
 
 qint32
 GeneralPage::saveClicked()
@@ -237,6 +275,9 @@ GeneralPage::saveClicked()
     // Directories
     appsettings->setValue(GC_WORKOUTDIR, workoutDirectory->text());
     appsettings->setValue(GC_HOMEDIR, athleteDirectory->text());
+#ifdef GC_WANT_R
+    appsettings->setValue(GC_R_HOME, rDirectory->text());
+#endif
 
     // Elevation
     appsettings->setValue(GC_ELEVATION_HYSTERESIS, hystedit->text());
@@ -253,6 +294,9 @@ GeneralPage::saveClicked()
 #ifdef GC_WANT_HTTP
     // start http
     appsettings->setValue(GC_START_HTTP, startHttp->isChecked());
+#endif
+#ifdef GC_WANT_R
+    appsettings->setValue(GC_EMBED_R, embedR->isChecked());
 #endif
 
     qint32 state=0;
@@ -275,6 +319,18 @@ GeneralPage::saveClicked()
 
     return state;
 }
+
+#ifdef GC_WANT_R
+void
+GeneralPage::browseRDir()
+{
+    QString currentDir = rDirectory->text();
+    if (!QDir(currentDir).exists()) currentDir = "";
+    QString dir = QFileDialog::getExistingDirectory(this, tr("R Installation (R_HOME)"),
+                            currentDir, QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
+    if (dir != "") rDirectory->setText(dir);  //only overwrite current dir, if a new was selected
+}
+#endif
 
 void
 GeneralPage::browseWorkoutDir()
@@ -4606,42 +4662,79 @@ CPPage::zonesChanged()
 HrZonePage::HrZonePage(Context *context) : context(context)
 {
     QVBoxLayout *layout = new QVBoxLayout(this);
+    QHBoxLayout *hlayout = new QHBoxLayout;
 
-    // get current config by reading it in (leave mainwindow zones alone)
-    QFile zonesFile(context->athlete->home->config().canonicalPath() + "/hr.zones");
-    if (zonesFile.exists()) {
-        zones.read(zonesFile);
-        zonesFile.close();
-        b4Fingerprint = zones.getFingerprint(); // remember original state
+    sportLabel = new QLabel(tr("Sport"));
+    sportCombo = new QComboBox();
+    sportCombo->addItem(tr("Bike"));
+    sportCombo->addItem(tr("Run"));
+    sportCombo->setCurrentIndex(0);
+    hlayout->addStretch();
+    hlayout->addWidget(sportLabel);
+    hlayout->addWidget(sportCombo);
+    hlayout->addStretch();
+    layout->addLayout(hlayout);
+    connect(sportCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(changeSport(int)));
+    tabs = new QTabWidget(this);
+    layout->addWidget(tabs);
+
+    for (int i=0; i < nSports; i++) {
+        hrZones[i] = new HrZones(i > 0);
+
+        // get current config by reading it in (leave mainwindow zones alone)
+        QFile zonesFile(context->athlete->home->config().canonicalPath() + "/" + hrZones[i]->fileName());
+        if (zonesFile.exists()) {
+            hrZones[i]->read(zonesFile);
+            zonesFile.close();
+            b4Fingerprint[i] = hrZones[i]->getFingerprint(); // remember original state
+        }
+
+        // setup maintenance pages using current config
+        schemePage[i] = new HrSchemePage(hrZones[i]);
+        ltPage[i] = new LTPage(context, hrZones[i], schemePage[i]);
     }
 
-    // setup maintenance pages using current config
-    schemePage = new HrSchemePage(this);
-    ltPage = new LTPage(this);
+    // finish setup for the default sport
+    changeSport(sportCombo->currentIndex());
+}
 
-    tabs = new QTabWidget(this);
-    tabs->addTab(ltPage, tr("Lactate Threshold"));
-    tabs->addTab(schemePage, tr("Default"));
+HrZonePage::~HrZonePage()
+{
+    for (int i=0; i<nSports; i++) delete hrZones[i];
+}
 
-    layout->addWidget(tabs);
+void
+HrZonePage::changeSport(int i)
+{
+    // change tabs according to the selected sport
+    tabs->clear();
+    tabs->addTab(ltPage[i], tr("Lactate Threshold"));
+    tabs->addTab(schemePage[i], tr("Default"));
 }
 
 qint32
 HrZonePage::saveClicked()
 {
-    zones.setScheme(schemePage->getScheme());
-    zones.write(context->athlete->home->config());
+    qint32 changed = 0;
 
-    // reread HR zones
-    QFile hrzonesFile(context->athlete->home->config().canonicalPath() + "/hr.zones");
-    context->athlete->hrzones_->read(hrzonesFile);
+    // write
+    for (int i=0; i < nSports; i++) {
+        hrZones[i]->setScheme(schemePage[i]->getScheme());
+        hrZones[i]->write(context->athlete->home->config());
 
-    // did we change ?
-    if (zones.getFingerprint() != b4Fingerprint) return CONFIG_ZONES;
-    else return 0;
+        // reread HR zones
+        QFile hrzonesFile(context->athlete->home->config().canonicalPath() + "/" + context->athlete->hrzones_[i]->fileName());
+        context->athlete->hrzones_[i]->read(hrzonesFile);
+
+        // did we change ?
+        if (hrZones[i]->getFingerprint() != b4Fingerprint[i])
+            changed = CONFIG_ZONES;
+    }
+
+    return changed;
 }
 
-HrSchemePage::HrSchemePage(HrZonePage* zonePage) : zonePage(zonePage)
+HrSchemePage::HrSchemePage(HrZones *hrZones) : hrZones(hrZones)
 {
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     mainLayout->setSpacing(5);
@@ -4677,15 +4770,15 @@ HrSchemePage::HrSchemePage(HrZonePage* zonePage) : zonePage(zonePage)
     //scheme->header()->resizeSection(3,65);
 
     // setup list
-    for (int i=0; i< zonePage->zones.getScheme().nzones_default; i++) {
+    for (int i=0; i< hrZones->getScheme().nzones_default; i++) {
 
         QTreeWidgetItem *add = new QTreeWidgetItem(scheme->invisibleRootItem());
         add->setFlags(add->flags() | Qt::ItemIsEditable);
 
         // tab name
-        add->setText(0, zonePage->zones.getScheme().zone_default_name[i]);
+        add->setText(0, hrZones->getScheme().zone_default_name[i]);
         // field name
-        add->setText(1, zonePage->zones.getScheme().zone_default_desc[i]);
+        add->setText(1, hrZones->getScheme().zone_default_desc[i]);
 
         // low
         QDoubleSpinBox *loedit = new QDoubleSpinBox(this);
@@ -4693,7 +4786,7 @@ HrSchemePage::HrSchemePage(HrZonePage* zonePage) : zonePage(zonePage)
         loedit->setMaximum(1000);
         loedit->setSingleStep(1.0);
         loedit->setDecimals(0);
-        loedit->setValue(zonePage->zones.getScheme().zone_default[i]);
+        loedit->setValue(hrZones->getScheme().zone_default[i]);
         scheme->setItemWidget(add, 2, loedit);
 
         // trimp
@@ -4702,7 +4795,7 @@ HrSchemePage::HrSchemePage(HrZonePage* zonePage) : zonePage(zonePage)
         trimpedit->setMaximum(10);
         trimpedit->setSingleStep(0.1);
         trimpedit->setDecimals(2);
-        trimpedit->setValue(zonePage->zones.getScheme().zone_default_trimp[i]);
+        trimpedit->setValue(hrZones->getScheme().zone_default_trimp[i]);
         scheme->setItemWidget(add, 3, trimpedit);
     }
 
@@ -4819,7 +4912,8 @@ HrSchemePage::getScheme()
 }
 
 
-LTPage::LTPage(HrZonePage* zonePage) : zonePage(zonePage)
+LTPage::LTPage(Context *context, HrZones *hrZones, HrSchemePage *schemePage) :
+               context(context), hrZones(hrZones), schemePage(schemePage)
 {
     active = false;
 
@@ -4919,30 +5013,30 @@ LTPage::LTPage(HrZonePage* zonePage) : zonePage(zonePage)
     //ranges->header()->resizeSection(0,180);
 
     // setup list of ranges
-    for (int i=0; i< zonePage->zones.getRangeSize(); i++) {
+    for (int i=0; i< hrZones->getRangeSize(); i++) {
 
         QTreeWidgetItem *add = new QTreeWidgetItem(ranges->invisibleRootItem());
         add->setFlags(add->flags() & ~Qt::ItemIsEditable);
 
         // Embolden ranges with manually configured zones
         QFont font;
-        font.setWeight(zonePage->zones.getHrZoneRange(i).hrZonesSetFromLT ?
+        font.setWeight(hrZones->getHrZoneRange(i).hrZonesSetFromLT ?
                        QFont::Normal : QFont::Black);
 
         // date
-        add->setText(0, zonePage->zones.getStartDate(i).toString(tr("MMM d, yyyy")));
+        add->setText(0, hrZones->getStartDate(i).toString(tr("MMM d, yyyy")));
         add->setFont(0, font);
 
         // LT
-        add->setText(1, QString("%1").arg(zonePage->zones.getLT(i)));
+        add->setText(1, QString("%1").arg(hrZones->getLT(i)));
         add->setFont(1, font);
 
         // Rest HR
-        add->setText(2, QString("%1").arg(zonePage->zones.getRestHr(i)));
+        add->setText(2, QString("%1").arg(hrZones->getRestHr(i)));
         add->setFont(2, font);
 
         // Max HR
-        add->setText(3, QString("%1").arg(zonePage->zones.getMaxHr(i)));
+        add->setText(3, QString("%1").arg(hrZones->getMaxHr(i)));
         add->setFont(3, font);
     }
 
@@ -4989,10 +5083,10 @@ void
 LTPage::addClicked()
 {
     // get current scheme
-    zonePage->zones.setScheme(zonePage->schemePage->getScheme());
+    hrZones->setScheme(schemePage->getScheme());
 
     //int index = ranges->invisibleRootItem()->childCount();
-    int index = zonePage->zones.addHrZoneRange(dateEdit->date(), ltEdit->value(), restHrEdit->value(), maxHrEdit->value());
+    int index = hrZones->addHrZoneRange(dateEdit->date(), ltEdit->value(), restHrEdit->value(), maxHrEdit->value());
 
     // new item
     QTreeWidgetItem *add = new QTreeWidgetItem;
@@ -5014,7 +5108,7 @@ void
 LTPage::editClicked()
 {
     // get current scheme
-    zonePage->zones.setScheme(zonePage->schemePage->getScheme());
+    hrZones->setScheme(schemePage->getScheme());
 
     QTreeWidgetItem *edit = ranges->selectedItems().at(0);
     int index = ranges->indexOfTopLevelItem(edit);
@@ -5023,13 +5117,13 @@ LTPage::editClicked()
     edit->setText(0, dateEdit->date().toString(tr("MMM d, yyyy")));
 
     // LT
-    zonePage->zones.setLT(index, ltEdit->value());
+    hrZones->setLT(index, ltEdit->value());
     edit->setText(1, QString("%1").arg(ltEdit->value()));
     // Rest HR
-    zonePage->zones.setRestHr(index, restHrEdit->value());
+    hrZones->setRestHr(index, restHrEdit->value());
     edit->setText(2, QString("%1").arg(restHrEdit->value()));
     // Max HR
-    zonePage->zones.setMaxHr(index, maxHrEdit->value());
+    hrZones->setMaxHr(index, maxHrEdit->value());
     edit->setText(3, QString("%1").arg(maxHrEdit->value()));
 }
 
@@ -5039,7 +5133,7 @@ LTPage::deleteClicked()
     if (ranges->currentItem()) {
         int index = ranges->invisibleRootItem()->indexOfChild(ranges->currentItem());
         delete ranges->invisibleRootItem()->takeChild(index);
-        zonePage->zones.deleteRange(index);
+        hrZones->deleteRange(index);
     }
 }
 
@@ -5049,7 +5143,7 @@ LTPage::defaultClicked()
     if (ranges->currentItem()) {
 
         int index = ranges->invisibleRootItem()->indexOfChild(ranges->currentItem());
-        HrZoneRange current = zonePage->zones.getHrZoneRange(index);
+        HrZoneRange current = hrZones->getHrZoneRange(index);
 
         // unbold
         QFont font;
@@ -5061,8 +5155,8 @@ LTPage::defaultClicked()
 
 
         // set the range to use defaults on the scheme page
-        zonePage->zones.setScheme(zonePage->schemePage->getScheme());
-        zonePage->zones.setHrZonesFromLT(index);
+        hrZones->setScheme(schemePage->getScheme());
+        hrZones->setHrZonesFromLT(index);
 
         // hide the default button since we are now using defaults
         defaultButton->hide();
@@ -5079,16 +5173,16 @@ LTPage::rangeEdited()
         int index = ranges->invisibleRootItem()->indexOfChild(ranges->currentItem());
 
         QDate date = dateEdit->date();
-        QDate odate = zonePage->zones.getStartDate(index);
+        QDate odate = hrZones->getStartDate(index);
 
         int lt = ltEdit->value();
-        int olt = zonePage->zones.getLT(index);
+        int olt = hrZones->getLT(index);
 
         int maxhr = maxHrEdit->value();
-        int omaxhr = zonePage->zones.getMaxHr(index);
+        int omaxhr = hrZones->getMaxHr(index);
 
         int resthr = restHrEdit->value();
-        int oresthr = zonePage->zones.getRestHr(index);
+        int oresthr = hrZones->getRestHr(index);
 
         if (date != odate || lt != olt || maxhr != omaxhr || resthr != oresthr)
             updateButton->show();
@@ -5112,19 +5206,19 @@ LTPage::rangeSelectionChanged()
     if (ranges->currentItem()) {
 
         int index = ranges->invisibleRootItem()->indexOfChild(ranges->currentItem());
-        HrZoneRange current = zonePage->zones.getHrZoneRange(index);
+        HrZoneRange current = hrZones->getHrZoneRange(index);
 
-        dateEdit->setDate(zonePage->zones.getStartDate(index));
-        ltEdit->setValue(zonePage->zones.getLT(index));
-        maxHrEdit->setValue(zonePage->zones.getMaxHr(index));
-        restHrEdit->setValue(zonePage->zones.getRestHr(index));
+        dateEdit->setDate(hrZones->getStartDate(index));
+        ltEdit->setValue(hrZones->getLT(index));
+        maxHrEdit->setValue(hrZones->getMaxHr(index));
+        restHrEdit->setValue(hrZones->getRestHr(index));
 
         if (current.hrZonesSetFromLT) {
 
             // reapply the scheme in case it has been changed
-            zonePage->zones.setScheme(zonePage->schemePage->getScheme());
-            zonePage->zones.setHrZonesFromLT(index);
-            current = zonePage->zones.getHrZoneRange(index);
+            hrZones->setScheme(schemePage->getScheme());
+            hrZones->setHrZonesFromLT(index);
+            current = hrZones->getHrZoneRange(index);
 
             defaultButton->hide();
 
@@ -5255,7 +5349,7 @@ LTPage::zonesChanged()
         if (ranges->currentItem()) {
 
             int index = ranges->invisibleRootItem()->indexOfChild(ranges->currentItem());
-            HrZoneRange current = zonePage->zones.getHrZoneRange(index);
+            HrZoneRange current = hrZones->getHrZoneRange(index);
 
             // embolden that range on the list to show it has been edited
             QFont font;
@@ -5294,7 +5388,7 @@ LTPage::zonesChanged()
             current.zones = zoneinfos;
 
             // now replace the current range struct
-            zonePage->zones.setHrZoneRange(index, current);
+            hrZones->setHrZoneRange(index, current);
         }
     }
 }
@@ -6433,7 +6527,7 @@ IntervalsPage::IntervalsPage(Context *context) : context(context)
     mainLayout->addLayout(layout);
     mainLayout->addStretch();
 
-    QLabel *heading = new QLabel(tr("Enable interval auto-discovery:"));
+    QLabel *heading = new QLabel(tr("Enable interval auto-discovery"));
     heading->setFixedHeight(QFontMetrics(heading->font()).height() + 4);
 
     int row = 0;

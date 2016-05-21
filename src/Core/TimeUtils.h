@@ -21,6 +21,7 @@
 
 #include <QDate>
 #include <QDateEdit>
+#include <QColor>
 #include <QDateTime>
 #include <QString>
 #include <QRadioButton>
@@ -41,10 +42,11 @@ class DateRange : QObject
 
     public:
         DateRange(const DateRange& other);
-        DateRange(QDate from = QDate(), QDate to = QDate(), QString name ="");
+        DateRange(QDate from = QDate(), QDate to = QDate(), QString name ="", QColor=QColor(127,127,127));
         DateRange& operator=(const DateRange &);
         QDate from, to;
         QString name;
+        QColor color; // used by R code only
 
         // does this date fall in the range selection ?
         bool pass(QDate date) {
@@ -54,9 +56,14 @@ class DateRange : QObject
             if (date >= from && date <= to) return true;
             return false;
         }
+        bool isValid() { return valid; }
+
 
     signals:
         void changed(QDate from, QDate to);
+
+    protected:
+        bool valid;
 };
 Q_DECLARE_METATYPE(DateRange)
 

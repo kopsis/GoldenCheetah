@@ -63,16 +63,13 @@
 #include "kqoauthmanager.h"
 #endif
 
-#ifdef GC_HAVE_WFAPI
-#include "WFApi.h"
-#endif
-
 #ifdef GC_HAVE_SAMPLERATE
 #include <samplerate.h>
 #endif
 
 #ifdef GC_WANT_R
 #include "RTool.h"
+#include "Rversion.h"
 #endif
 
 GcCrashDialog::GcCrashDialog(QDir homeDir) : QDialog(NULL, Qt::Dialog), home(homeDir)
@@ -266,12 +263,6 @@ QString GcCrashDialog::versionHTML()
     vlc = "yes";
     #endif
 
-    #ifdef GC_HAVE_WFAPI
-    QString wfapi = WFApi::getInstance()->apiVersion();
-    #else
-    QString wfapi = QString("none");
-    #endif
-
     #ifdef GC_HAVE_SAMPLERATE
     QString src = QString(src_get_version()).mid(14,6);
     #else
@@ -312,12 +303,11 @@ QString GcCrashDialog::versionHTML()
             "<tr><td colspan=\"2\">ICAL</td><td>%10</td></tr>"
             "<tr><td colspan=\"2\">USBXPRESS</td><td>%11</td></tr>"
             "<tr><td colspan=\"2\">LIBUSB</td><td>%12</td></tr>"
-            "<tr><td colspan=\"2\">Wahoo API</td><td>%13</td></tr>"
-            "<tr><td colspan=\"2\">VLC</td><td>%14</td></tr>"
-            "<tr><td colspan=\"2\">VIDEO</td><td>%15</td></tr>"
-            "<tr><td colspan=\"2\">SAMPLERATE</td><td>%16</td></tr>"
-            "<tr><td colspan=\"2\">SSL</td><td>%17</td></tr>"
-            "<tr><td colspan=\"2\">R</td><td>%18</td></tr>"
+            "<tr><td colspan=\"2\">VLC</td><td>%13</td></tr>"
+            "<tr><td colspan=\"2\">VIDEO</td><td>%14</td></tr>"
+            "<tr><td colspan=\"2\">SAMPLERATE</td><td>%15</td></tr>"
+            "<tr><td colspan=\"2\">SSL</td><td>%16</td></tr>"
+            "<tr><td colspan=\"2\">R</td><td>%17</td></tr>"
             "</table>"
             )
             .arg(QT_VERSION_STR)
@@ -332,7 +322,6 @@ QString GcCrashDialog::versionHTML()
             .arg(ical)
             .arg(usbxpress)
             .arg(libusb)
-            .arg(wfapi)
             .arg(vlc)
 #if defined GC_VIDEO_QUICKTIME
             .arg("quicktime")
@@ -346,9 +335,13 @@ QString GcCrashDialog::versionHTML()
             .arg(src)
             .arg(QSslSocket::supportsSsl() ? "yes" : "none")
 #ifdef GC_WANT_R
-            .arg(rtool->version)
+            .arg(QString("%1 [%2.%3]").arg(rtool ? rtool->version : QString("none")).arg(R_MAJOR).arg(R_MINOR))
+#else
+#ifdef WIN32
+            .arg("unsupported")
 #else
             .arg("none")
+#endif
 #endif
 
             ;

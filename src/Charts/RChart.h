@@ -19,20 +19,23 @@
 #ifndef _GC_RChart_h
 #define _GC_RChart_h 1
 
-#include <RInside.h>
+#include <REmbed.h>
 #include <QString>
 #include <QDebug>
 #include <QColor>
 #include <QTextEdit>
 #include <QScrollBar>
+#include <QCheckBox>
 #include <QSplitter>
-#include <QSvgWidget>
+#include <QByteArray>
 #include <string.h>
 
 #include "GoldenCheetah.h"
 #include "Context.h"
 #include "Athlete.h"
+#include "RCanvas.h"
 
+class RChart;
 
 // a console widget to type commands and display response
 class RConsole : public QTextEdit {
@@ -47,7 +50,7 @@ public slots:
     void rMessage(QString);
 
 public:
-    explicit RConsole(Context *context, QWidget *parent = 0);
+    explicit RConsole(Context *context, RChart *parent = 0);
 
     void putData(QString data);
     void putData(QColor color, QString data);
@@ -59,6 +62,7 @@ public:
 
     QStringList history;
     int hpos;
+    QString chartid;
 
 protected:
     virtual void keyPressEvent(QKeyEvent *e);
@@ -69,6 +73,7 @@ protected:
 private:
     Context *context;
     bool localEchoEnabled;
+    RChart *parent;
 };
 
 // the chart
@@ -76,16 +81,44 @@ class RChart : public GcChartWindow {
 
     Q_OBJECT
 
+    Q_PROPERTY(QString script READ getScript WRITE setScript USER true)
+    Q_PROPERTY(QString state READ getState WRITE setState USER true)
+    Q_PROPERTY(bool showConsole READ showConsole WRITE setConsole USER true)
+
     public:
-        RChart(Context *context);
+        RChart(Context *context, bool ridesummary);
+
+        // reveal
+        bool hasReveal() { return true; }
+        QCheckBox *showCon;
+
+        // receives all the events
+        QTextEdit *script;
+        RConsole *console;
+        RCanvas *canvas;
+
+        bool showConsole() const { return (showCon ? showCon->isChecked() : true); }
+        void setConsole(bool);
+
+        QString getScript() const;
+        void setScript(QString);
+
+        QString getState() const;
+        void setState(QString);
+
+    public slots:
+        void configChanged(qint32);
+        void showConChanged(int state);
+        void runScript();
 
     protected:
         QSplitter *splitter;
-        RConsole *console;
-        QSvgWidget *surface;
+        QSplitter *leftsplitter;
 
     private:
         Context *context;
+        QString text; // if Rtool not alive
+        bool ridesummary;
 };
 
 
