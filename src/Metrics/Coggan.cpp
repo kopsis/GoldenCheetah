@@ -262,7 +262,7 @@ class TSS : public RideMetric {
             // Resulting formula is:
             //   lt_pct = avg_HR/LT_HR
 	    //   TSS/hour = 18.78*exp(0.3705*lt_pct) + 0.341*exp(5.292*lt_pct)
-	    if (!item->context->athlete->hrZones() || item->hrZoneRange < 0)
+	    if (!item->context->athlete->hrZones(false) || item->hrZoneRange < 0)
 		return;
 	    assert(deps.contains("time_riding"));
 	    assert(deps.contains("workout_time"));
@@ -276,7 +276,7 @@ class TSS : public RideMetric {
 	    double secs = timeRidingMetric->value(true) ? 
 		timeRidingMetric->value(true) : durationMetric->value(true);
 	    double hr = averageHrMetric->value(true);
-	    double ltHr = (double)(item->context->athlete->hrZones()->getLT(item->hrZoneRange));
+	    double ltHr = (double)(item->context->athlete->hrZones(false)->getLT(item->hrZoneRange));
 	    double TSSPerHr = 18.78*exp(0.3705*(hr/ltHr)) + 0.341*exp(5.292*(hr/ltHr));
 	    score = TSSPerHr * (secs/3600);
 	}
