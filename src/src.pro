@@ -782,6 +782,6 @@ OTHER_FILES += Resources/web/Rider.js Resources/web/ride.js Resources/web/jquery
                Resources/web/MapWindow.html Resources/web/StreetViewWindow.html Resources/web/Window.css
 
 
-MY_EXT_INCLUDES = INCLUDEPATH
+MY_EXT_INCLUDES = $$INCLUDEPATH
 MY_EXT_INCLUDES -= $$QMAKE_DEFAULT_INCDIRS
 INCLUDEPATH = $$MY_EXT_INCLUDES
